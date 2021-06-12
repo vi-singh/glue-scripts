@@ -1,0 +1,35 @@
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from awsglue.dynamicframe import DynamicFrameCollection
+from awsglue.dynamicframe import DynamicFrame
+
+# function to upload file in dynamodb
+def upload_dynamodb(glueContext, dfc) -> DynamicFrameCollection:
+    glueContext.write_dynamic_frame_from_options(
+        frame=dfc,
+        connection_type="dynamodb",
+        connection_options={
+            "dynamodb.output.tableName": "snowflake-migration",
+            "dynamodb.throughput.write.percent": "0.95"
+        }
+    )
+
+
+## @params: [JOB_NAME]
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+datasource0 = glueContext.create_dynamic_frame.from_options(connection_type = "s3", format = "csv", connection_options = {"paths": ["s3://a3s-workspace/snowflake-workspace/"], "recurse":True}, transformation_ctx = "datasource0")
+
+transform1 = upload_dynamodb(glueContext, DynamicFrameCollection({"datasource0": datasource0}, glueContext))
+
+job.commit()
